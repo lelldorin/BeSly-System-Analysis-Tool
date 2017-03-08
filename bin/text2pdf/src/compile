@@ -1,0 +1,1 @@
+gcc -o text2pdf text2pdf.c
