@@ -1,0 +1,2058 @@
+App_Name$="BeSly System Analysis Tool"
+AppInternalName$="BeSlySAT"
+App_Version$="Version 0.3.6 - December 2015"
+VersionDate$="22.07.2016"
+Developer$="Lelldorin"
+
+//##################################### Global Variables #####################################
+screenWidth = peek("desktopwidth")
+screenHeight = peek("desktopheight")
+screenResizeNo=0
+
+//Program Folder
+if (peek("isbound")) then
+	ProgramFolder$ = peek$("directory")
+else
+	ProgramFolder$ = system$("pwd")
+	ProgramFolder$ = left$(ProgramFolder$, len(ProgramFolder$)-1)
+fi
+
+//ProgramFolder$="/boot/system/apps/BeSlySAT"
+
+if(IfExists("/boot/home/config/settings/beslysat.cfg")) then
+	GetProgramSettings()
+else
+	writefile = open("/boot/home/config/settings/beslysat.cfg", "a")
+	close(writefile)
+	Output$=System$("addattr -t string LAYOUT bottom /boot/home/config/settings/beslysat.cfg")	
+	Output$=System$("addattr -t string Expand:Analysis "+"\""+"User Info"+"\""+" /boot/home/config/settings/beslysat.cfg")	
+	Output$=System$("addattr -t string Expand:Database Database /boot/home/config/settings/beslysat.cfg")	
+	Output$=System$("addattr -t string ScreenSizeHeight 600 /boot/home/config/settings/beslysat.cfg")
+	Output$=System$("addattr -t string ScreenSizeWidth 800 /boot/home/config/settings/beslysat.cfg")
+	Output$=System$("addattr -t string WindowPositionX 240 /boot/home/config/settings/beslysat.cfg")
+	Output$=System$("addattr -t string WindowPositionY 212 /boot/home/config/settings/beslysat.cfg")
+
+	GetProgramSettings()	
+endif
+
+
+if(IfExists("/boot/home/.besly")) then
+else
+	Output$=System$("mkdir /boot/home/.besly")
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT")) then
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT")
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT/database")) then
+	App_DatabaseFolder$="/boot/home/.besly/BeSlySAT/database"
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT/database")
+	App_DatabaseFolder$="/boot/home/.besly/BeSlySAT/database"
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT/database/appDB")) then
+	AppDB$="/boot/home/.besly/BeSlySAT/database/appDB"
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT/database/appDB")
+	AppDB$="/boot/home/.besly/BeSlySAT/database/appDB"
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT/database/userDB")) then
+	UserDB$="/boot/home/.besly/BeSlySAT/database/userDB"
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT/database/userDB")
+	UserDB$="/boot/home/.besly/BeSlySAT/database/userDB"
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT/update")) then
+	UpdatesFolder$="/boot/home/.besly/BeSlySAT/update"
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT/update")
+	UpdatesFolder$="/boot/home/.besly/BeSlySAT/update"
+endif
+
+if(IfExists("/boot/home/.besly/BeSlySAT/temp")) then
+	TempFolder$="/boot/home/.besly/BeSlySAT/temp"
+else
+	Output$=System$("mkdir /boot/home/.besly/BeSlySAT/temp")
+	TempFolder$="/boot/home/.besly/BeSlySAT/temp"
+endif
+
+//Get SystemInfo
+
+Info_SystemVersion$=System$(trim$("uname -v"))
+	if(right$(Info_SystemVersion$,1) = "\n")then
+		wordlen=len(Info_SystemVersion$)
+		Info_SystemVersion$= left$(Info_SystemVersion$,wordlen-1)
+	endif
+Info_GccVersion$=System$("getarch")
+	if(right$(Info_GccVersion$,1) = "\n")then
+		wordlen=len(Info_GccVersion$)
+		Info_GccVersion$= left$(Info_GccVersion$,wordlen-1)
+	endif
+
+ClearAll()				//Clear all Variables
+GetScreenInfo()
+
+if(IfExists("/boot/system/bin/dmidecode")) then
+else
+	Selected = ALERT "To get all system specific data you need to install "+chr$(34)+"dmidecode"+Chr$(34)+" using "+chr$(34)+"HaikuDepot"+Chr$(34), "ignore", "open HaikuDepot", "",  "info"
+		if(Selected=1)then
+		elseif(Selected=2)then
+			output$=system$("HaikuDepot")
+		else
+		endif
+endif
+
+
+
+WINDOW OPEN screenWidth/2-400,screenHeight/2-300 to screenWidth/2+400,screenHeight/2+300, AppInternalName$, App_Name$
+	WINDOW SET AppInternalName$,  "MinimumTo", 800,600
+	WINDOW SET AppInternalName$,  "MaximumTo", screenWidth,screenHeight	
+	
+	//WINDOW SET AppInternalName$, "Flags", "Not-Resizable"
+	//WINDOW SET AppInternalName$, "Flags", "Not-Resizable,Not-Zoomable"
+	if(screenHeight=600)then
+		WINDOW SET AppInternalName$, "Look", "Modal"
+	endif
+	
+	//MENU "App", "About", "", AppInternalName$
+	//MENU "App", "--", "", AppInternalName$
+	MENU "App", "Quit", "", AppInternalName$
+	
+	MENU "Database", "Add Hardwaredata", "", AppInternalName$
+	MENU "Database", "--", "", AppInternalName$
+	MENU "Database", "Send your Database to BeSly", "", AppInternalName$
+		MENU SET "Database", "Send your Database to BeSly", "disable", AppInternalName$
+	MENU "Database", "--", "", AppInternalName$
+	MENU "Database", "Update Database", "", AppInternalName$
+	MENU "Database", "--", "", AppInternalName$
+	SUBMENU "Database", "Export As...", "Text file", "", AppInternalName$
+	//SUBMENU "Database", "Export As...", "PDF file", "", AppInternalName$
+	SUBMENU "Database", "Export As...", "ZIP file", "", AppInternalName$
+		MENU SET "Database", "Export As...", "disable", AppInternalName$
+	
+	
+	MENU "Help", "Documentation", "", AppInternalName$
+	MENU "Help", "Haiku BUG Tracker", "", AppInternalName$
+	MENU "Help", "--", "", AppInternalName$	
+	MENU "Help", "BeSly - Haiku, BeOS and Zeta knowledge base", "", AppInternalName$
+	MENU "Help", "BeSly Software Solutions", "", AppInternalName$
+	
+	STACKVIEW 0,0 TO 800,600, "SV_Main", 2, AppInternalName$
+		
+	sb_value=0
+	sb_tile=20/35
+	LAYOUT "Left, Top, Right", "SV_Main1"
+	STATUSBAR 100, 270 to 700, 295, "SB:Loading", "Loading Data...", "GUI elements", "SV_Main1"
+	
+	LAYOUT "Left, Top, Right, Bottom", "SV_Main2"		
+	TABVIEW 0,20 TO 800,600, "TV_SAT", SettingsLayout$, "SV_Main2"
+		TABVIEW ADD "TV_SAT", "Analysis"
+		TABVIEW ADD "TV_SAT", "Database"
+		TABVIEW ADD "TV_SAT", "About"
+		TABVIEW ADD "TV_SAT", "Settings"
+		
+	DRAW TEXT 5,40, "You are running Haiku: "+Info_SystemVersion$, "TV_SAT1"
+	DRAW TEXT 5,60, "Architecture: "+Info_GccVersion$, "TV_SAT1"
+	DRAW TEXT 5,80, "With a resolution of: "+Info_ScreenWidth$+" x "+Info_ScreenHeight$+" - "+Info_ScreenColors$+" bits - "+Info_ScreenHrz$+" Hz", "TV_SAT1" 
+	
+	LAYOUT "Top, Right", "TV_SAT1"
+	BUTTON 780,85 TO 790,95, "BT_X", "x", "TV_SAT1"
+		TOOLTIP "BT_X", "Reset All"
+	
+	if(SettingsExpandAnalysis$="User Info")then
+		LAYOUT "Left, Top, Right, Bottom", "TV_SAT1"						
+	elseif(SettingsExpandAnalysis$="Hardware")then
+		LAYOUT "Left, Top, Right", "TV_SAT1"
+	elseif(SettingsExpandAnalysis$="Notes")then
+		LAYOUT "Left, Top, Right", "TV_SAT1"
+	endif	
+	BOXVIEW 5,100 TO 790,295, "BV_Userinfo", "User Info", 2, "TV_SAT1"	
+		
+		VIEW 5,5 TO 760,172, "VI_Userinfo", "BV_Userinfo"
+			SCROLLBAR "SB_Userinfo", 1, "VI_Userinfo"
+				SCROLLBAR SET "SB_Userinfo", "Vertical Steps", 5, 10
+				SCROLLBAR SET "SB_Userinfo", "Vertical Range", 0, 550//180
+				
+				//Enrty 0 - Kind of computer:
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				LAYOUT "Top", "VI_Userinfo"
+				VIEW 0,0 TO screenWidth,22, "VI_Userinfo0", "VI_Userinfo"
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo0"
+					DRAW TEXT 5,16, "Kind of computer:", "VI_Userinfo0"
+						CHECKBOX 360,2, "XB_KindPC:Desktop", "Desktop PC", 0, "VI_Userinfo0"
+						CHECKBOX 460,2, "XB_KindPC:Laptop", "Mobile PC", 0, "VI_Userinfo0"
+						CHECKBOX 560,2, "XB_KindPC:Tablet", "Tablet", 0, "VI_Userinfo0"		
+						
+				//Enrty 1 - Booting from:
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value				
+				VIEW 0,23 TO screenWidth,45, "VI_Userinfo1", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo1"
+					DRAW TEXT 5,16, "Booting Haiku from:", "VI_Userinfo1"
+						CHECKBOX 360,2, "XB_BootingFrom:harddisk", "Harddisk", 0, "VI_Userinfo1"
+						CHECKBOX 440,2, "XB_BootingFrom:cd", "CD", 0, "VI_Userinfo1"	
+						CHECKBOX 520,2, "XB_BootingFrom:dvd", "DVD", 0, "VI_Userinfo1"
+						CHECKBOX 600,2, "XB_BootingFrom:usb", "USB", 0, "VI_Userinfo1"
+						CHECKBOX 680,2, "XB_BootingFrom:network", "Network", 0, "VI_Userinfo1"
+					
+				
+				//Enrty 2 - Running Haiku on...:
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value					
+				VIEW 0,46 TO screenWidth,68, "VI_Userinfo2", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo2"
+					DRAW TEXT 5,16, "Running Haiku on:", "VI_Userinfo2"
+						CHECKBOX 360,2, "XB_RunningOn:DirectHardware", "Natively (Hardware)", 0, "VI_Userinfo2"
+						CHECKBOX 510,2, "XB_RunningOn:VirtualMachine", "Virtual machine", 0, "VI_Userinfo2"	
+						CHECKBOX 660,2, "XB_RunningOn:Emulator", "Emulator", 0, "VI_Userinfo2"	
+					
+					
+					
+								
+				//Enrty 3 - Long time black screen before displaying boot icons?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,69 TO screenWidth,91, "VI_Userinfo3", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo3"
+					DRAW TEXT 5,16, "Long time black screen before displaying boot icons?:", "VI_Userinfo3"
+						CHECKBOX 360,2, "XB_Blackscreen:yes", "yes", 0, "VI_Userinfo3"
+						CHECKBOX 450,2, "XB_Blackscreen:no", "no", 0, "VI_Userinfo3"	
+						
+				//Enrty 4 - Hanging long time at which boot icon
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,92 TO screenWidth,130, "VI_Userinfo4", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo4"
+					DRAW TEXT 5,16, "Does one boot icon in particular hang for a long time?", "VI_Userinfo4"
+					DRAW TEXT 5,32, "Which one?:", "VI_Userinfo4"
+						BUTTON IMAGE 360,5, "BT_Icon:1", ProgramFolder$+"/gfx/pic1a.gif", ProgramFolder$+"/gfx/pic1a.gif", ProgramFolder$+"/gfx/pic1b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 400,5, "BT_Icon:2", ProgramFolder$+"/gfx/pic2a.gif", ProgramFolder$+"/gfx/pic2a.gif", ProgramFolder$+"/gfx/pic2b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 440,5, "BT_Icon:3", ProgramFolder$+"/gfx/pic3a.gif", ProgramFolder$+"/gfx/pic3a.gif", ProgramFolder$+"/gfx/pic3b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 480,5, "BT_Icon:4", ProgramFolder$+"/gfx/pic4a.gif", ProgramFolder$+"/gfx/pic4a.gif", ProgramFolder$+"/gfx/pic4b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 520,5, "BT_Icon:5", ProgramFolder$+"/gfx/pic5a.gif", ProgramFolder$+"/gfx/pic5a.gif", ProgramFolder$+"/gfx/pic5b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 560,5, "BT_Icon:6", ProgramFolder$+"/gfx/pic6a.gif", ProgramFolder$+"/gfx/pic6a.gif", ProgramFolder$+"/gfx/pic6b.gif", "VI_Userinfo4"
+						BUTTON IMAGE 600,5, "BT_Icon:7", ProgramFolder$+"/gfx/pic7a.gif", ProgramFolder$+"/gfx/pic7a.gif", ProgramFolder$+"/gfx/pic7b.gif", "VI_Userinfo4"
+				
+				//Enrty 5 - Do you need to use VESA graphic mode?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,131 TO screenWidth,153, "VI_Userinfo5", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo5"
+					DRAW TEXT 5,16, "Do you need to use VESA graphic mode?", "VI_Userinfo5"
+						CHECKBOX 360,2, "XB_Vesa:yes", "yes", 0, "VI_Userinfo5"		
+						CHECKBOX 450,2, "XB_Vesa:no", "no", 0, "VI_Userinfo5"	
+					DRAW TEXT 550,16, "Resolution:", "VI_Userinfo5"			
+						TEXTCONTROL 630,0 TO 750,20, "TC:VesaResolution", "", str$(screenWidth)+"x"+str$(screenHeight), "VI_Userinfo5"
+						
+				
+				//Enrty 6 - Do you able to run the biggest screen resolution?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,154 TO screenWidth,176, "VI_Userinfo6", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo6"
+					DRAW TEXT 5,16, "Are you able to use the native resolution of your screen?", "VI_Userinfo6"
+						CHECKBOX 360,2, "XB_ScreenResolution:yes", "yes", 0, "VI_Userinfo6"		
+						CHECKBOX 450,2, "XB_ScreenResolution:no", "no", 0, "VI_Userinfo6"
+					DRAW TEXT 550,16, "Resolution:", "VI_Userinfo6"			
+						TEXTCONTROL 630,0 TO 750,20, "TC:ScreenResolution", "", str$(screenWidth)+"x"+str$(screenHeight), "VI_Userinfo6"
+					
+					
+				//Enrty 7 - Do you have sound?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,177 TO screenWidth,199, "VI_Userinfo7", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo7"
+					DRAW TEXT 5,16, "Do you have sound?", "VI_Userinfo7"
+						CHECKBOX 360,2, "XB_Sound:yes", "yes", 0, "VI_Userinfo7"		
+						CHECKBOX 450,2, "XB_Sound:no", "no", 0, "VI_Userinfo7"
+				
+				//Enrty 8 - Can you connect to the internet using LAN?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,200 TO screenWidth,222, "VI_Userinfo8", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo8"
+					DRAW TEXT 5,16, "Can you connect to the internet using LAN?", "VI_Userinfo8"
+						CHECKBOX 360,2, "XB_InternetLAN:yes", "yes", 0, "VI_Userinfo8"		
+						CHECKBOX 450,2, "XB_InternetLAN:no", "no", 0, "VI_Userinfo8"
+						
+				//Enrty 9 - Can you connect to the internet using WLAN?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,223 TO screenWidth,245, "VI_Userinfo9", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo9"
+					DRAW TEXT 5,16, "Can you connect to the internet using WLAN?", "VI_Userinfo9"
+						CHECKBOX 360,2, "XB_InternetWLAN:yes", "yes", 0, "VI_Userinfo9"		
+						CHECKBOX 450,2, "XB_InternetWLAN:no", "no", 0, "VI_Userinfo9"
+								
+				//Enrty 10 - All your hard disks have been detected?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,246 TO screenWidth,268, "VI_Userinfo10", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo10"
+					DRAW TEXT 5,16, "All your harddisks are detected properly?", "VI_Userinfo10"
+						CHECKBOX 360,2, "XB_Harddisks:yes", "yes", 0, "VI_Userinfo10"		
+						CHECKBOX 450,2, "XB_Harddisks:no", "no", 0, "VI_Userinfo10"			
+				
+				//Enrty 11 - Your mouse is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,269 TO screenWidth,291, "VI_Userinfo11", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo11"
+					DRAW TEXT 5,16, "Your mouse is detected properly?", "VI_Userinfo11"
+						CHECKBOX 360,2, "XB_Mouse:yes", "yes", 0, "VI_Userinfo11"		
+						CHECKBOX 450,2, "XB_Mouse:no", "no", 0, "VI_Userinfo11"	
+				
+				//Enrty 12 - Your touchpad is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,292 TO screenWidth,314, "VI_Userinfo12", "VI_Userinfo"
+
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo12"
+					DRAW TEXT 5,16, "Your touchpad is detected properly?", "VI_Userinfo12"
+						CHECKBOX 360,2, "XB_Touchpad:yes", "yes", 0, "VI_Userinfo12"		
+						CHECKBOX 450,2, "XB_Touchpad:no", "no", 0, "VI_Userinfo12"								
+				
+				//Enrty 13 - Your keyboard is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,315 TO screenWidth,337, "VI_Userinfo13", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo13"
+					DRAW TEXT 5,16, "Your keyboard is detected properly?", "VI_Userinfo13"
+						CHECKBOX 360,2, "XB_Keyboard:yes", "yes", 0, "VI_Userinfo13"		
+						CHECKBOX 450,2, "XB_Keyboard:no", "no", 0, "VI_Userinfo13"	
+				
+				//Enrty 14 - Your cd-rom is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,338 TO screenWidth,360, "VI_Userinfo14", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo14"
+					DRAW TEXT 5,16, "Your CD-Rom is detected properly?", "VI_Userinfo14"
+						CHECKBOX 360,2, "XB_CD:yes", "yes", 0, "VI_Userinfo14"		
+						CHECKBOX 450,2, "XB_CD:no", "no", 0, "VI_Userinfo14"		
+				
+				//Enrty 15 - Your dvd-rom is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,361 TO screenWidth,383, "VI_Userinfo15", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo15"
+					DRAW TEXT 5,16, "Your DVD-Rom is detected properly?", "VI_Userinfo15"
+						CHECKBOX 360,2, "XB_DVD:yes", "yes", 0, "VI_Userinfo15"		
+						CHECKBOX 450,2, "XB_DVD:no", "no", 0, "VI_Userinfo15"		
+				
+				//Enrty 16 - Your Blue-ray-rom is detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,384 TO screenWidth,406, "VI_Userinfo16", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo16"
+					DRAW TEXT 5,16, "Your Bluray-Rom is detected properly?", "VI_Userinfo16"
+						CHECKBOX 360,2, "XB_BlueRay:yes", "yes", 0, "VI_Userinfo16"		
+						CHECKBOX 450,2, "XB_BlueRay:no", "no", 0, "VI_Userinfo16"	
+						
+				//Enrty 17 - USB 1 detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,407 TO screenWidth,429, "VI_Userinfo17", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo17"
+					DRAW TEXT 5,16, "Your USB 1 ports are detected properly?", "VI_Userinfo17"
+						CHECKBOX 360,2, "XB_USB1:yes", "yes", 0, "VI_Userinfo17"		
+						CHECKBOX 450,2, "XB_USB1:no", "no", 0, "VI_Userinfo17"
+					DRAW TEXT 640,16, "Count:", "VI_Userinfo17"	
+						TEXTCONTROL 695,0 TO 750,20, "TC:USB1Count", "", "", "VI_Userinfo17"
+						
+				//Enrty 18 - USB 2 detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,430 TO screenWidth,452, "VI_Userinfo18", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo18"
+					DRAW TEXT 5,16, "Your USB 2 ports are detected properly?", "VI_Userinfo18"
+						CHECKBOX 360,2, "XB_USB2:yes", "yes", 0, "VI_Userinfo18"		
+						CHECKBOX 450,2, "XB_USB2:no", "no", 0, "VI_Userinfo18"
+					DRAW TEXT 640,16, "Count:", "VI_Userinfo18"		
+						TEXTCONTROL 695,0 TO 750,20, "TC:USB2Count", "", "", "VI_Userinfo18"
+					
+					
+				//Enrty 19 - USB 3 detected properly?
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,453 TO screenWidth,475, "VI_Userinfo19", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo19"
+					DRAW TEXT 5,16, "Your USB 3 ports are detected properly?", "VI_Userinfo19"
+						CHECKBOX 360,2, "XB_USB3:yes", "yes", 0, "VI_Userinfo19"		
+						CHECKBOX 450,2, "XB_USB3:no", "no", 0, "VI_Userinfo19"
+					DRAW TEXT 640,16, "Count:", "VI_Userinfo19"			
+						TEXTCONTROL 695,0 TO 750,20, "TC:USB3Count", "", "", "VI_Userinfo19"
+						
+								
+				//Enrty 30 - Manufacturer
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,485 TO screenWidth,507, "VI_Userinfo30", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo30"
+					DRAW TEXT 5,16, "Manufacturer:", "VI_Userinfo30"
+						TEXTCONTROL 355,0 TO 630,20, "TC:Manufacturer", "", "", "VI_Userinfo30"	
+					DRAW TEXT 640,16, "Year:", "VI_Userinfo30"			
+						TEXTCONTROL 695,0 TO 750,20, "TC:ManufacturYear", "", "", "VI_Userinfo30"
+				
+						
+				//Enrty 31 - Model
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,508 TO screenWidth,530, "VI_Userinfo31", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo31"
+					DRAW TEXT 5,16, "Model:", "VI_Userinfo31"
+						TEXTCONTROL 355,0 TO 630,20, "TC:Model", "", "", "VI_Userinfo31"
+					DRAW TEXT 640,16, "Number:", "VI_Userinfo31"			
+						TEXTCONTROL 695,0 TO 750,20, "TC:ModelNumber", "", "", "VI_Userinfo31"			
+					
+					
+				//Enrty 32 - Main Memory
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,531 TO screenWidth,553, "VI_Userinfo32", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo32"
+					DRAW TEXT 5,16, "Main memory:", "VI_Userinfo32"
+						TEXTCONTROL 355,0 TO 630,20, "TC:MainMemory", "", "", "VI_Userinfo32"
+					DRAW TEXT 640,16, "Size:", "VI_Userinfo32"			
+						TEXTCONTROL 695,0 TO 750,20, "TC:MainMemorySize", "", "", "VI_Userinfo32"	
+					
+						
+				//Enrty 33 - Processor
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,554 TO screenWidth,576, "VI_Userinfo33", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo33"
+					DRAW TEXT 5,16, "Processor:", "VI_Userinfo33"
+						TEXTCONTROL 355,0 TO 630,20, "TC:Processor", "", "", "VI_Userinfo33"		
+					DRAW TEXT 640,16, "Cores:", "VI_Userinfo33"
+						TEXTCONTROL 695,0 TO 750,20, "TC:ProcessorCores", "", "", "VI_Userinfo33"	
+					
+				
+				//Enrty 34 - Graphics Card
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,577 TO screenWidth,599, "VI_Userinfo34", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo34"
+					DRAW TEXT 5,16, "Graphics card:", "VI_Userinfo34"
+						TEXTCONTROL 355,0 TO 630,20, "TC:GraphicsCard", "", "", "VI_Userinfo34"
+					DRAW TEXT 640,16, "Count:", "VI_Userinfo34"			
+						TEXTCONTROL 695,0 TO 750,20, "TC:GraphicsCardCount", "", "", "VI_Userinfo34"	
+					
+				
+				//Enrty 35 - Network Card (LAN)
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,600 TO screenWidth,622, "VI_Userinfo35", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo35"
+					DRAW TEXT 5,16, "Network card (LAN):", "VI_Userinfo35"
+						TEXTCONTROL 355,0 TO 750,20, "TC:NetworkCardLAN", "", "", "VI_Userinfo35"
+					
+					
+				//Enrty 36 - Network Card (WLAN)
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,623 TO screenWidth,645, "VI_Userinfo36", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo36"
+					DRAW TEXT 5,16, "Network card (WLAN):", "VI_Userinfo36"
+						TEXTCONTROL 355,0 TO 750,20, "TC:NetworkCardWLAN", "", "", "VI_Userinfo36"	
+					
+				
+				//Enrty 37 - Sound Card (on board)
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,646 TO screenWidth,668, "VI_Userinfo37", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo37"
+					DRAW TEXT 5,16, "Sound card (on board):", "VI_Userinfo37"
+						TEXTCONTROL 355,0 TO 750,20, "TC:SoundcardOnboard", "", "", "VI_Userinfo37"
+					
+				
+				//Enrty 38 - Sound Card (expanded)
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,669 TO screenWidth,691, "VI_Userinfo38", "VI_Userinfo"
+						
+					DRAW SET "BGColor", 255,231,186, "VI_Userinfo38"
+					DRAW TEXT 5,16, "Sound card (expanded):", "VI_Userinfo38"
+						TEXTCONTROL 355,0 TO 750,20, "TC:SoundcardExpanded", "", "", "VI_Userinfo38"
+					
+				
+				//Enrty 39 - Card Reader
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+				VIEW 0,692 TO screenWidth,714, "VI_Userinfo39", "VI_Userinfo"
+					
+					DRAW SET "BGColor", 255, 250, 205, "VI_Userinfo39"
+					DRAW TEXT 5,16, "Card reader:", "VI_Userinfo39"
+						TEXTCONTROL 355,0 TO 750,20, "TC:CardReader", "", "", "VI_Userinfo39"
+		
+	if(SettingsExpandAnalysis$="User Info")then
+		LAYOUT "Left, Bottom, Right", "TV_SAT1"						
+	elseif(SettingsExpandAnalysis$="Hardware")then
+		LAYOUT "Left, Top, Right,  Bottom", "TV_SAT1"
+	elseif(SettingsExpandAnalysis$="Notes")then
+		LAYOUT "Left, Top, Right", "TV_SAT1"
+	endif	
+	BOXVIEW 5,300 TO 790,460, "BV_Hardware", "Hardware", 2, "TV_SAT1"//565		
+		COLUMNBOX 5,5 TO 775,138, "CB_Hardware", 1, "movable, resizable", "BV_Hardware"
+			COLUMNBOX COLUMN "CB_Hardware", "Device", 1, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Vendor", 2, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type", 3, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type1", 4, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type2", 5, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type3", 6, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type4", 7, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_Hardware", "Type5", 8, 100, 50, 60, ""
+			
+			sb_value=sb_value+sb_tile
+			STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+	
+	if(SettingsExpandAnalysis$="User Info")then
+		LAYOUT "Left, Bottom, Right", "TV_SAT1"						
+	elseif(SettingsExpandAnalysis$="Hardware")then
+		LAYOUT "Left, Bottom, Right", "TV_SAT1"
+	elseif(SettingsExpandAnalysis$="Notes")then
+		LAYOUT "Left, Top, Right, Bottom", "TV_SAT1"
+	endif		
+	BOXVIEW 5,465 TO 790,545, "BV_Notes", "Notes", 2, "TV_SAT1"//565		
+		TEXTEDIT 5,5 TO 775,57, "TE_Notes", 1, "BV_Notes"	
+		
+		sb_value=sb_value+sb_tile
+		STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value		
+			
+	//Tab Database
+	
+	if(SettingsExpandDatabase$="Database")then
+		LAYOUT "Left, Top, Bottom, Right", "TV_SAT2"						
+	elseif(SettingsExpandDatabase$="Hardware")then
+		LAYOUT "Left, Right, Top", "TV_SAT2"
+	endif
+	BOXVIEW 5,20 TO 790,295, "BV_Database", "Database", 2, "TV_SAT2"		
+		COLUMNBOX 5,5 TO 775,252, "CB_Database", 1, "movable, resizable", "BV_Database"
+			COLUMNBOX COLUMN "CB_Database", "Name", 1, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Kind of PC", 2, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Manufacturer", 3, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Build Year", 4, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Model", 5, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Model number", 6, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Main memory", 7, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Size", 8, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Processor", 9, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Cores", 10, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Graphics card", 11, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Count", 12, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Network card LAN", 13, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Network card WLAN", 14, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Soundcard onboard", 15, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Soundcard expanded", 16, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Card reader", 17, 300, 50, 100, ""
+			
+			COLUMNBOX COLUMN "CB_Database", "System version", 18, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Gcc Version", 19, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Booting from", 20, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Running on", 21, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Long time blackscreen", 22, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Hanging on Booticon", 23, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Vesa mode", 24, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Vesa Resolution", 25, 300, 50, 100, ""			
+			COLUMNBOX COLUMN "CB_Database", "Using highest Screen Resolution", 26, 300, 50, 100, ""			
+			COLUMNBOX COLUMN "CB_Database", "Screen Resolution", 27, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Do you have sound", 28, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Connection via LAN", 29, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Connection via WLAN", 30, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "All Harddiscs detected", 31, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Mouse detected", 32, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Keyboard detected", 33, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "CD detected", 34, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "DVD detected", 35, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "Blue Ray detected", 36, 300, 50, 100, ""			
+			COLUMNBOX COLUMN "CB_Database", "USB 1 detected", 37, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "USB 1 count", 38, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "USB 2 detected", 39, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "USB 2 count", 40, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "USB 3 detected", 41, 300, 50, 100, ""
+			COLUMNBOX COLUMN "CB_Database", "USB 3 count", 42, 300, 50, 100, ""
+			
+			sb_value=sb_value+sb_tile
+			STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+	
+	if(SettingsExpandDatabase$="Database")then
+		LAYOUT "Left, Right, Bottom", "TV_SAT2"
+	elseif(SettingsExpandDatabase$="Hardware")then
+		LAYOUT "Left, Top,Bottom, Right", "TV_SAT2"
+	endif	
+	BOXVIEW 5,300 TO 790,518, "BV_DatabaseHardware", "Hardware", 2, "TV_SAT2"		
+		COLUMNBOX 5,5 TO 775,195, "CB_DatabaseHardware", 1, "movable, resizable", "BV_DatabaseHardware"
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Device", 1, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Vendor", 2, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type", 3, 400, 100, 250, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type1", 4, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type2", 5, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type3", 6, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type4", 7, 100, 50, 60, ""
+			COLUMNBOX COLUMN "CB_DatabaseHardware", "Type5", 8, 100, 50, 60, ""
+		
+			sb_value=sb_value+sb_tile
+			STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+	
+	LAYOUT "Left, Bottom", "TV_SAT2"	
+	BUTTON 5,525 TO 75,545, "BT:dmidecode", "dmidecode", "TV_SAT2"
+		TOOLTIP "BT:dmidecode", "dmidecode"
+		option set "BT:dmidecode", "enabled", false	
+	BUTTON 80,525 TO 150,545, "BT:ifconfig", "ifconfig", "TV_SAT2"
+		TOOLTIP "BT:ifconfig", "ifconfig"
+		option set "BT:ifconfig", "enabled", false
+	BUTTON 155,525 TO 225,545, "BT:listdev", "listdev", "TV_SAT2"
+		TOOLTIP "BT:listdev", "listdev"
+		option set "BT:listdev", "enabled", false
+	BUTTON 230,525 TO 300,545, "BT:listimage", "listimage", "TV_SAT2"
+		TOOLTIP "BT:listimage", "listimage"
+		option set "BT:listimage", "enabled", false
+	BUTTON 305,525 TO 375,545, "BT:listusb", "listusb", "TV_SAT2"
+		TOOLTIP "BT:listusb", "listusb"
+		option set "BT:listusb", "enabled", false
+	BUTTON 380,525 TO 450,545, "BT:packages", "packages", "TV_SAT2"
+		TOOLTIP "BT:packages", "packages"
+		option set "BT:packages", "enabled", false
+	BUTTON 455,525 TO 525,545, "BT:repos", "repos", "TV_SAT2"
+		TOOLTIP "BT:repos", "repos"
+		option set "BT:repos", "enabled", false			
+	BUTTON 530,525 TO 600,545, "BT:sysinfo", "sysinfo", "TV_SAT2"
+		TOOLTIP "BT:sysinfo", "sysinfo"
+		option set "BT:sysinfo", "enabled", false
+	BUTTON 605,525 TO 675,545, "BT:syslog", "syslog", "TV_SAT2"
+		TOOLTIP "BT:syslog", "syslog"
+		option set "BT:syslog", "enabled", false
+	
+	BUTTON 720,525 TO 790,545, "BT:notes", "notes", "TV_SAT2"	
+		TOOLTIP "BT:notes", "notes"
+		option set "BT:notes", "enabled", false
+		
+		sb_value=sb_value+sb_tile
+		STATUSBAR SET "SB:Loading", "Loading Data...", "GUI elements", sb_value	
+			
+	
+	
+	//Tab About	
+	LAYOUT "Left, Top, Right, Bottom", "TV_SAT3"	
+	BOXVIEW 5,20 TO 790,545, "BV_About", "About: BeSly System Analysis Tool", 2, "TV_SAT3"			
+		TEXTEDIT 5,10 TO 774,500, "TE_About", 1, "BV_About"
+			TEXTEDIT SET "TE_About", "editable", false
+			print ProgramFolder$+"/about.text"
+			readout_about=open(ProgramFolder$+"/about.text", "r")
+				while (not EOF(readout_about))
+					ro_about=ro_about+1
+					dim DocumentText$(ro_about)
+						line input #readout_about b$
+						DocumentText$(ro_about)=b$
+						TEXTEDIT ADD "TE_About", DocumentText$(ro_about)+"\n"
+				wend
+			close(readout_about)
+			
+			
+			
+		//Tabview 4 - Settings	
+		LAYOUT "Left, Top, Right,Bottom", "TV_SAT4"
+		BOXVIEW 5,20 TO 790,545, "BV_Settings", "Settings", 2, "TV_SAT4"
+			LAYOUT "Left, Top, Bottom", "TV_SAT4"
+			TREEBOX 5,5 to 250,500, "TB:Settings", 1, "BV_Settings"
+				TREEBOX ADD "TB:Settings", "Layout"
+					TREEBOX ADD "TB:Settings", "Layout", "Tabviews", 1
+					TREEBOX ADD "TB:Settings", "Layout", "Full screen mode", 1
+			
+			LAYOUT "Top, Left,Right, Bottom", "TV_SAT4"
+			STACKVIEW 260,5 TO 770,500, "SV:Settings", 10, "BV_Settings"
+				LAYOUT "Top, Left, Right, Bottom", "TV_SAT4"
+				BOXVIEW 0,0 TO 510,495, "BV:Tabviews", "Tabviews", 2, "SV:Settings2"
+					DRAW TEXT 10,20, "Tab position:", "BV:Tabviews"
+					LAYOUT "Top, Left", "BV:Tabviews"
+					DROPBOX 120,5 TO 220,25, "DB:TabPosition", "", "BV:Tabviews"
+						DROPBOX ADD "DB:TabPosition", "Bottom"
+						DROPBOX ADD "DB:TabPosition", "Top"
+						if(SettingsLayout$="Top")then
+							DROPBOX SELECT "DB:TabPosition", 2
+						else
+							DROPBOX SELECT "DB:TabPosition", 1
+						endif
+						
+				LAYOUT "Top, Left, Right, Bottom", "TV_SAT4"		
+				BOXVIEW 0,0 TO 510,495, "BV:FullscreenMode", "Full screen mode", 2, "SV:Settings1"	
+					DRAW TEXT 10,25, "Expanding in Fullscreen mode:", "BV:FullscreenMode"
+					DRAW TEXT 10,45, "Analysis Tab:", "BV:FullscreenMode"
+						LAYOUT "Top, Left", "BV:FullscreenMode"
+						DROPBOX 220,30 TO 320,50, "DB:TabAnalysis", "", "BV:FullscreenMode"
+							DROPBOX ADD "DB:TabAnalysis", "User Info"
+							DROPBOX ADD "DB:TabAnalysis", "Hardware"
+							DROPBOX ADD "DB:TabAnalysis", "Notes"
+							if(SettingsExpandAnalysis$="User Info")then
+								DROPBOX SELECT "DB:TabAnalysis", 1
+							elseif(SettingsExpandAnalysis$="Hardware")then
+								DROPBOX SELECT "DB:TabAnalysis", 2
+							elseif(SettingsExpandAnalysis$="Notes")then
+								DROPBOX SELECT "DB:TabAnalysis", 3
+							endif
+							
+					DRAW TEXT 10,70, "Database Tab:", "BV:FullscreenMode"
+						LAYOUT "Top, Left", "BV:FullscreenMode"
+						DROPBOX 220,55 TO 320,75, "DB:TabDatabase", "", "BV:FullscreenMode"
+							DROPBOX ADD "DB:TabDatabase", "Database"
+							DROPBOX ADD "DB:TabDatabase", "Hardware"
+							if(SettingsExpandDatabase$="Database")then
+								DROPBOX SELECT "DB:TabDatabase", 1
+							elseif(SettingsExpandDatabase$="Hardware")then
+								DROPBOX SELECT "DB:TabDatabase", 2
+							endif
+			
+					//SettingsExpandAnalysis$
+					//SettingsExpandDatabase$
+			
+
+	
+	WINDOW SET AppInternalName$, "MoveTo", ScreenSizeX,ScreenSizeY
+	WINDOW SET AppInternalName$, "ResizeTo", ScreenSizeWidth,ScreenSizeHeight
+	
+	//ScreenSize_Height			ScreenSizeHeight "+str$(ScreenSize_Height)
+	//ScreenSize_Width			ScreenSizeWidth "+str$(ScreenSize_Width)
+	//ScreenSize_X 				WindowPositionX "+str$(CheckScreenSize_X)
+	//ScreenSize_Y				WindowPositionY "+str$(CheckScreenSize_Y)		
+	
+			
+	GetHardwareInfo()
+	ReadoutDatabase()
+	wait 0.5
+	STATUSBAR SET "SB:Loading", "Loading Data...", "Ready", 100
+	wait 1
+	STACKVIEW SET "SV_Main", 2	
+			
+//Main Loop
+dim part$(1)
+inloop = true
+while(inloop)
+	msg$ = message$
+	if (split(msg$, part$(), ":|") > 2) then
+		PartOne$=part$(1)
+		PartTwo$ = part$(2)
+		PartThree$ = part$(3)
+	fi
+	if (split(msg$, part$(), ":|") > 3) then
+		PartFour$ = part$(4)
+	fi
+	if (msg$ <> "") print msg$
+	
+	switch msg$
+	
+	case AppInternalName$+":App:Quit|"
+	case AppInternalName$+":_QuitRequested|"
+		WINDOW CLOSE AppInternalName$
+		break
+		
+	//User Info	
+	
+	case "BT_X|"
+		Selected = ALERT "Do you really want to clear all your entered data?", "yes", "cancel", "", "info"
+			if(Selected=1)then
+				CHECKBOX SET "XB_KindPC:Desktop", 0
+				CHECKBOX SET "XB_KindPC:Laptop", 0
+				CHECKBOX SET "XB_KindPC:Tablet", 0
+				CHECKBOX SET "XB_BootingFrom:harddisk", 0
+				CHECKBOX SET "XB_BootingFrom:cd", 0
+				CHECKBOX SET "XB_BootingFrom:dvd", 0
+				CHECKBOX SET "XB_BootingFrom:usb", 0
+				CHECKBOX SET "XB_BootingFrom:network",0	
+				CHECKBOX SET "XB_RunningOn:Emulator", 0
+				CHECKBOX SET "XB_RunningOn:DirectHardware", 0
+				CHECKBOX SET "XB_RunningOn:VirtualMachine", 0
+				CHECKBOX SET "XB_Blackscreen:no", 0
+				CHECKBOX SET "XB_Blackscreen:yes", 0
+				i=0
+				for i = 1 to 7
+					OPTION SET "BT_Icon:"+str$(i), "Enabled", 1
+				next i
+				CHECKBOX SET "XB_Vesa:no", 0
+				CHECKBOX SET "XB_Vesa:yes", 0
+				CHECKBOX SET "XB_ScreenResolution:no", 0
+				CHECKBOX SET "XB_ScreenResolution:yes", 0
+				CHECKBOX SET "XB_Sound:no", 0
+				CHECKBOX SET "XB_Sound:yes", 0
+				CHECKBOX SET "XB_InternetLAN:no", 0
+				CHECKBOX SET "XB_InternetLAN:yes", 0
+				CHECKBOX SET "XB_InternetWLAN:no", 0
+				CHECKBOX SET "XB_InternetWLAN:yes", 0
+				CHECKBOX SET "XB_Harddisks:no", 0
+				CHECKBOX SET "XB_Harddisks:yes", 0
+				CHECKBOX SET "XB_Mouse:no", 0
+				CHECKBOX SET "XB_Mouse:yes", 0
+				CHECKBOX SET "XB_Touchpad:no", 0
+				CHECKBOX SET "XB_Touchpad:yes", 0
+				CHECKBOX SET "XB_Keyboard:no", 0
+				CHECKBOX SET "XB_Keyboard:yes", 0
+				CHECKBOX SET "XB_CD:no", 0
+				CHECKBOX SET "XB_CD:yes", 0
+				CHECKBOX SET "XB_DVD:no", 0
+				CHECKBOX SET "XB_DVD:yes", 0
+				CHECKBOX SET "XB_BlueRay:no", 0
+				CHECKBOX SET "XB_BlueRay:yes", 0
+				CHECKBOX SET "XB_USB1:yes", 0
+				CHECKBOX SET "XB_USB1:no", 0
+				CHECKBOX SET "XB_USB2:yes", 0
+				CHECKBOX SET "XB_USB2:no", 0
+				CHECKBOX SET "XB_USB3:yes", 0
+				CHECKBOX SET "XB_USB3:no", 0
+						
+				TEXTCONTROL CLEAR "TC:USB1Count"
+				TEXTCONTROL CLEAR "TC:USB2Count"
+				TEXTCONTROL CLEAR "TC:USB3Count"
+				TEXTCONTROL CLEAR "TC:VesaResolution"
+				TEXTCONTROL SET "TC:VesaResolution", str$(screenWidth)+"x"+str$(screenHeight)
+				TEXTCONTROL CLEAR "TC:ScreenResolution"
+				TEXTCONTROL SET "TC:ScreenResolution", str$(screenWidth)+"x"+str$(screenHeight)
+				TEXTCONTROL CLEAR "TC:Manufacturer"
+				TEXTCONTROL CLEAR "TC:ManufacturYear"
+				TEXTCONTROL CLEAR "TC:Model"
+				TEXTCONTROL CLEAR "TC:ModelNumber"
+				TEXTCONTROL CLEAR "TC:MainMemory"
+				TEXTCONTROL CLEAR "TC:MainMemorySize"
+				TEXTCONTROL CLEAR "TC:Processor"
+				TEXTCONTROL CLEAR "TC:ProcessorCores"
+				TEXTCONTROL CLEAR "TC:GraphicsCard"
+				TEXTCONTROL CLEAR "TC:GraphicsCardCount"
+				TEXTCONTROL CLEAR "TC:NetworkCardLAN"
+				TEXTCONTROL CLEAR "TC:NetworkCardWLAN"
+				TEXTCONTROL CLEAR "TC:SoundcardOnboard"
+				TEXTCONTROL CLEAR "TC:SoundcardExpanded"
+				TEXTCONTROL CLEAR "TC:CardReader"
+				TEXTCONTROL CLEAR "TC:USB1Count"
+				TEXTCONTROL CLEAR "TC:USB2Count"
+				TEXTCONTROL CLEAR "TC:USB3Count"
+				ClearAll()					
+			else
+			endif
+		break
+	
+	case "XB_KindPC:"+PartTwo$+":"+PartThree$+"|"
+		if(PartThree$="ON")then
+			Info_KindPC$=PartTwo$
+		else
+			Info_KindPC$=""
+		endif
+		if(PartTwo$="Desktop")then
+			CHECKBOX SET "XB_KindPC:Laptop", 0
+			CHECKBOX SET "XB_KindPC:Tablet", 0
+		elseif(PartTwo$="Laptop")then
+			CHECKBOX SET "XB_KindPC:Desktop", 0
+			CHECKBOX SET "XB_KindPC:Tablet", 0
+		elseif(PartTwo$="Tablet")then
+			CHECKBOX SET "XB_KindPC:Desktop", 0
+			CHECKBOX SET "XB_KindPC:Laptop", 0
+		endif			
+		break
+		
+	case "XB_BootingFrom:"+PartTwo$+":"+PartThree$+"|"
+		if(PartThree$="ON")then
+			Info_BootingFrom$=PartTwo$
+		else
+			Info_BootingFrom$=""
+		endif	
+		if(PartTwo$="harddisk")then
+			CHECKBOX SET "XB_BootingFrom:cd", 0
+			CHECKBOX SET "XB_BootingFrom:dvd", 0
+			CHECKBOX SET "XB_BootingFrom:usb", 0
+			CHECKBOX SET "XB_BootingFrom:network",0
+		elseif(PartTwo$="cd")then
+			CHECKBOX SET "XB_BootingFrom:harddisk", 0
+			CHECKBOX SET "XB_BootingFrom:dvd", 0
+			CHECKBOX SET "XB_BootingFrom:usb", 0
+			CHECKBOX SET "XB_BootingFrom:network",0
+		elseif(PartTwo$="dvd")then
+			CHECKBOX SET "XB_BootingFrom:harddisk", 0
+			CHECKBOX SET "XB_BootingFrom:cd", 0
+			CHECKBOX SET "XB_BootingFrom:usb", 0
+			CHECKBOX SET "XB_BootingFrom:network",0
+		elseif(PartTwo$="usb")then
+			CHECKBOX SET "XB_BootingFrom:harddisk", 0
+			CHECKBOX SET "XB_BootingFrom:cd", 0
+			CHECKBOX SET "XB_BootingFrom:dvd", 0
+			CHECKBOX SET "XB_BootingFrom:network",0
+		elseif(PartTwo$="network")then
+			CHECKBOX SET "XB_BootingFrom:harddisk", 0
+			CHECKBOX SET "XB_BootingFrom:cd", 0
+			CHECKBOX SET "XB_BootingFrom:dvd", 0
+			CHECKBOX SET "XB_BootingFrom:usb",0
+		endif
+		break	
+	
+	case "XB_RunningOn:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_RunningOn$=PartTwo$
+		else
+			Info_RunningOn$=""
+		endif	
+		if(PartTwo$="DirectHardware")then
+			CHECKBOX SET "XB_RunningOn:VirtualMachine", 0
+			CHECKBOX SET "XB_RunningOn:Emulator", 0
+		elseif(PartTwo$="VirtualMachine")then
+			CHECKBOX SET "XB_RunningOn:DirectHardware", 0
+			CHECKBOX SET "XB_RunningOn:Emulator", 0
+		elseif(PartTwo$="Emulator")then
+			CHECKBOX SET "XB_RunningOn:DirectHardware", 0
+			CHECKBOX SET "XB_RunningOn:VirtualMachine", 0
+		endif
+		break	
+			
+	case "XB_Blackscreen:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Blackscreen$=PartTwo$
+		else
+			Info_Blackscreen$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Blackscreen:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Blackscreen:yes", 0
+		endif
+		break			
+			
+	case "BT_Icon:"+PartTwo$+"|"
+		OPTION SET PartOne$+":"+PartTwo$, "Enabled", 0
+		if(Info_Booticons$="")then
+			Info_Booticons$=PartTwo$
+		else
+			Info_Booticons$=Info_Booticons$+":"+PartTwo$
+		endif
+		break
+		
+	case "XB_Vesa:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Vesa$=PartTwo$
+		else
+			Info_Vesa$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Vesa:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Vesa:yes", 0
+		endif
+		break
+		
+	case "XB_ScreenResolution:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_ScreenResolution$=PartTwo$
+		else
+			Info_ScreenResolution$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_ScreenResolution:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_ScreenResolution:yes", 0
+		endif
+		break
+	
+	case "XB_Sound:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Sound$=PartTwo$
+		else
+			Info_Sound$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Sound:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Sound:yes", 0
+		endif
+		break			
+		
+	case "XB_InternetLAN:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_InternetLAN$=PartTwo$
+		else
+			Info_InternetLAN$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_InternetLAN:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_InternetLAN:yes", 0
+		endif
+		break			
+	
+	case "XB_InternetWLAN:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_InternetWLAN$=PartTwo$
+		else
+			Info_InternetWLAN$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_InternetWLAN:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_InternetWLAN:yes", 0
+		endif
+		break	
+
+		
+	case "XB_Harddisks:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Harddisks$=PartTwo$
+		else
+			Info_Harddisks$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Harddisks:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Harddisks:yes", 0
+		endif
+		break
+		
+	case "XB_Mouse:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Mouse$=PartTwo$
+		else
+			Info_Mouse$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Mouse:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Mouse:yes", 0
+		endif
+		break
+	
+	case "XB_Touchpad:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Touchpad$=PartTwo$
+		else
+			Info_Touchpad$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Touchpad:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Touchpad:yes", 0
+		endif
+		break
+	
+	case "XB_Keyboard:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_Keyboard$=PartTwo$
+		else
+			Info_Keyboard$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_Keyboard:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_Keyboard:yes", 0
+		endif
+		break
+	
+	case "XB_CD:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_CD$=PartTwo$
+		else
+			Info_CD$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_CD:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_CD:yes", 0
+		endif
+		break
+	
+	case "XB_DVD:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_DVD$=PartTwo$
+		else
+			Info_DVD$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_DVD:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_DVD:yes", 0
+		endif
+		break
+	
+	case "XB_BlueRay:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_BlueRay$=PartTwo$
+		else
+			Info_BlueRay$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_BlueRay:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_BlueRay:yes", 0
+		endif
+		break
+	
+	case "XB_USB1:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_USB1$=PartTwo$
+		else
+			Info_USB1$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_USB1:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_USB1:yes", 0
+		endif
+		break
+	
+	case "XB_USB2:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_USB2$=PartTwo$
+		else
+			Info_USB2$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_USB2:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_USB2:yes", 0
+		endif
+		break
+	
+	case "XB_USB3:"+PartTwo$+":ON|"
+		if(PartThree$="ON")then
+			Info_USB3$=PartTwo$
+		else
+			Info_USB3$=""
+		endif	
+		if(PartTwo$="yes")then
+			CHECKBOX SET "XB_USB3:no", 0
+		elseif(PartTwo$="no")then
+			CHECKBOX SET "XB_USB3:yes", 0
+		endif
+		break
+	
+
+	case AppInternalName$+":Database:Add Hardwaredata|"
+		STACKVIEW SET "SV_Main",1
+			STATUSBAR SET "SB:Loading", "Add Hardware data...", "Waiting for user input", 0
+		
+		
+		WINDOW OPEN screenWidth/2-200,screenHeight/2-85 TO screenWidth/2+200,screenHeight/2+85, "Add-Hardwaredata", "Add Hardwaredata"
+			WINDOW SET "Add-Hardwaredata", "Look", "Modal"
+			WINDOW SET "Add-Hardwaredata", "Flags", "Not-Closable, Not-Zoomable, Not-Minimizable, Not-H-Resizable, Not-V-Resizable,Not-Resizable, No-Workspace-Activation, Accept-First-Click"
+			
+			TEXTEDIT 10,12 TO 395,35, "TE:Text", 0, "Add-Hardwaredata"
+				TEXTEDIT COLOR "TE:Text", "bgcolor", 216,216,216
+				TEXTEDIT ADD "TE:Text", "Add a name for the database entry:"
+				TEXTEDIT SET "TE:Text", "editable", 0
+			
+			VIEW 5,40 TO 395,80, "VI_Info", "Add-Hardwaredata"
+				DRAW SET "HighColor", 0,0,254, "VI_Info"	//color 0,0,254 default 0,0,0
+				DRAW LINE 1,1 TO 1,40, "VI_Info"
+				DRAW LINE 390,1 TO 390,40, "VI_Info"	
+				DRAW LINE 1,1 TO 390,1, "VI_Info"
+				DRAW LINE 1,40 TO 390,40, "VI_Info"	
+								
+				DRAW SET "BGColor", 223,223,254, "VI_Info"
+				err = DRAW IMAGE 10,5, ProgramFolder$+"/gfx/info.png", "VI_Info"
+				//err = DRAW IMAGE 10,5, "/SHAREDBFS/Projekte/yab/BeSlySAT/gfx/info.png", "VI_Info"
+				
+				TEXTEDIT 50,5 TO 389,39, "TE:Info", 0, "VI_Info"
+					TEXTEDIT COLOR "TE:Info", "bgcolor", 223,223,254
+					TEXTEDIT ADD "TE:Info", "The computer model and manufacturer should be in the name of database entry."
+					TEXTEDIT SET "TE:Info", "editable", 0
+				
+			TEXTCONTROL 0,100 TO 395,120, "TC:Add", "", "", "Add-Hardwaredata"	
+			
+			BUTTON 5,140 TO 285,160, "BT:Add", "Add", "Add-Hardwaredata"			
+			BUTTON 295,140 TO 395,160, "BT:Cancel", "Cancel", "Add-Hardwaredata"
+		break
+				
+	case "BT:Cancel|"
+		WINDOW CLOSE "Add-Hardwaredata"
+		STACKVIEW SET "SV_Main",2
+		break
+	
+	case "BT:Add|"
+		Name_DatabaseEntry$=TEXTCONTROL GET$ "TC:Add"
+		WINDOW CLOSE "Add-Hardwaredata"
+		STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", 10
+		sb_value=10	
+		sb_tile=20/19
+		if(IfExists("\""+UserDB$+"/"+Name_DatabaseEntry$+"\"")) then
+		else
+			Output$=System$("mkdir "+"\""+UserDB$+"/"+Name_DatabaseEntry$+"\"")
+		
+			
+			Info_VesaResolutionCurrent$=TEXTCONTROL GET$ "TC:VesaResolution"
+			Info_ScreenResolutionCurrent$=TEXTCONTROL GET$ "TC:ScreenResolution"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_Manufacturer$=TEXTCONTROL GET$ "TC:Manufacturer"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_ManufacturerYear$=TEXTCONTROL GET$ "TC:ManufacturYear"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_Model$=TEXTCONTROL GET$ "TC:Model"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_ModelNumber$=TEXTCONTROL GET$ "TC:ModelNumber"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_MainMemory$=TEXTCONTROL GET$ "TC:MainMemory"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_MainMemorySize$=TEXTCONTROL GET$ "TC:MainMemorySize"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_Processor$=TEXTCONTROL GET$ "TC:Processor"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_ProcessorCores$=TEXTCONTROL GET$ "TC:ProcessorCores"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_GraphicsCard$=TEXTCONTROL GET$ "TC:GraphicsCard"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_GraphicsCardCount$=TEXTCONTROL GET$ "TC:GraphicsCardCount"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_NetworkCardLAN$=TEXTCONTROL GET$ "TC:NetworkCardLAN"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_NetworkCardWLAN$=TEXTCONTROL GET$ "TC:NetworkCardWLAN"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_SoundcardOnboard$=TEXTCONTROL GET$ "TC:SoundcardOnboard"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_SoundcardExpanded$=TEXTCONTROL GET$ "TC:SoundcardExpanded"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_CardReader$=TEXTCONTROL GET$ "TC:CardReader"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_USB1Count$=TEXTCONTROL GET$ "TC:USB1Count"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_USB2Count$=TEXTCONTROL GET$ "TC:USB2Count"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			Info_USB3Count$=TEXTCONTROL GET$ "TC:USB3Count"
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Read out entered user informations", sb_value
+			
+			
+			writefile = open(UserDB$+"/"+Name_DatabaseEntry$+"/"+Name_DatabaseEntry$+".data", "a")
+				Output$=System$("ln -s "+"\""+UserDB$+"/"+Name_DatabaseEntry$+"\""+" "+AppDB$)
+				g=0
+				entries = COLUMNBOX COUNT "CB_Hardware"
+				sb_tile=20/entries
+				for g = 1 to entries
+					Item1$ = COLUMNBOX GET$ "CB_Hardware", 1, g
+					Item2$ = COLUMNBOX GET$ "CB_Hardware", 2, g
+					Item3$ = COLUMNBOX GET$ "CB_Hardware", 3, g
+					Item4$ = COLUMNBOX GET$ "CB_Hardware", 4, g
+					Item5$ = COLUMNBOX GET$ "CB_Hardware", 5, g
+					Item6$ = COLUMNBOX GET$ "CB_Hardware", 6, g
+					Item7$ = COLUMNBOX GET$ "CB_Hardware", 7, g
+					Item8$ = COLUMNBOX GET$ "CB_Hardware", 8, g
+					print #writefile Item1$+"|"+Item2$+"|"+Item3$+"|"+Item4$+"|"+Item5$+"|"+Item6$+"|"+Item7$+"|"+Item8$
+					sb_value=sb_value+sb_tile
+					STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+				next g			
+			close(writefile)
+			
+			sb_tile=40/48
+			Output$=System$("addattr -t string 00 "+Info_KindPC$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 01 "+Info_SystemVersion$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 02 "+Info_GccVersion$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 03 "+Info_BootingFrom$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 04 "+Info_RunningOn$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 05 "+Info_Blackscreen$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 06 "+Info_Booticons$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 07 "+Info_Vesa$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 07-1 "+Info_VesaResolutionCurrent$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 08 "+Info_ScreenResolution$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 08-1 "+Info_ScreenResolutionCurrent$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 09 "+Info_Sound$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 10 "+Info_InternetLAN$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 11 "+Info_InternetWLAN$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 12 "+Info_Harddisks$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 13 "+Info_Mouse$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 14 "+Info_Keyboard$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 15 "+Info_CD$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value	
+			Output$=System$("addattr -t string 16 "+Info_DVD$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 17 "+Info_BlueRay$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 18 "+Info_USB1$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 18-1 "+Info_USB1Count$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 19 "+Info_USB2$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 19-1 "+Info_USB2Count$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 20 "+Info_USB3$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 20-1 "+Info_USB3Count$+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value		
+			Output$=System$("addattr -t string 30 "+"\""+Info_Manufacturer$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 30-1 "+"\""+Info_ManufacturerYear$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 31 "+"\""+Info_Model$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 31-1 "+"\""+Info_ModelNumber$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 32 "+"\""+Info_MainMemory$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 33 "+"\""+Info_MainMemorySize$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 34 "+"\""+Info_Processor$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 35 "+"\""+Info_ProcessorCores$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 36 "+"\""+Info_GraphicsCard$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 37 "+"\""+Info_GraphicsCardCount$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 38 "+"\""+Info_NetworkCardLAN$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 39 "+"\""+Info_NetworkCardWLAN$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 40 "+"\""+Info_SoundcardOnboard$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 41 "+"\""+Info_SoundcardExpanded$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("addattr -t string 42 "+"\""+Info_CardReader$+"\""+" "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".data"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			
+			
+			Output$=System$("dmidecode > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".dmidecode"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("listdev > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".listdev"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("listimage > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".listimage"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("pkgman search -a > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".packages"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("pkgman list-repos > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".repos"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("sysinfo > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".sysinfo"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("listusb > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".listusb"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("cat /var/log/syslog > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".syslog"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+			Output$=System$("ifconfig > "+UserDB$+"/"+"\""+Name_DatabaseEntry$+"\""+"/"+"\""+Name_DatabaseEntry$+".ifconfig"+"\"")
+				sb_value=sb_value+sb_tile
+				STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", sb_value
+						Notes$ = TEXTEDIT GET$ "TE_Notes"
+			writefile = open(UserDB$+"/"+Name_DatabaseEntry$+"/"+Name_DatabaseEntry$+".notice", "a")
+				if(Notes$="")then
+					print #writefile " "
+				else
+					print #writefile Notes$
+				endif
+			close(writefile)
+			STATUSBAR SET "SB:Loading", "Add Hardware data...", "Writing user Data", 100
+			wait 2
+			sb_value=0
+			
+			addhardware=1
+			ReadoutDatabase()
+		endif		
+		break
+	
+	//Select Database Entry and load hardware Data
+	
+	case "CB_Database:_Select:"+PartThree$+"|"
+		SelectedDBFile$=COLUMNBOX GET$ "CB_Database", 1, val(PartThree$)
+
+		MENU SET "Database", "Export As...", "enable", AppInternalName$
+		COLUMNBOX CLEAR "CB_DatabaseHardware"
+		x=0
+		GetDatabaseEntrieName$ = COLUMNBOX GET$ "CB_Database", 1, val(PartThree$)
+		readout=open(AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".data", "r")
+		while (not EOF(readout))
+			x=x+1
+			dim Entry$(x)
+				line input #readout b$
+				Entry$(x)=b$
+				dim elements$(1)
+					numElements = split(Entry$(x), elements$(),"|")
+					COLUMNBOX ADD "CB_DatabaseHardware", 1, x, 20, elements$(1)
+					COLUMNBOX ADD "CB_DatabaseHardware", 2, x, 20, elements$(2)
+					COLUMNBOX ADD "CB_DatabaseHardware", 3, x, 20, elements$(3)
+					COLUMNBOX ADD "CB_DatabaseHardware", 4, x, 20, elements$(4)
+					COLUMNBOX ADD "CB_DatabaseHardware", 5, x, 20, elements$(5)
+					COLUMNBOX ADD "CB_DatabaseHardware", 6, x, 20, elements$(6)
+					COLUMNBOX ADD "CB_DatabaseHardware", 7, x, 20, elements$(7)
+					COLUMNBOX ADD "CB_DatabaseHardware", 8, x, 20, elements$(8)
+		
+		wend
+		close(readout)
+
+
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".dmidecode"+"\"")) then
+			option set "BT:dmidecode", "enabled", true
+		else
+			option set "BT:dmidecode", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".ifconfig"+"\"")) then
+			option set "BT:ifconfig", "enabled", true
+		else
+			option set "BT:ifconfig", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listdev"+"\"")) then
+			option set "BT:listdev", "enabled", true
+		else
+			option set "BT:listdev", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listimage"+"\"")) then
+			option set "BT:listimage", "enabled", true
+		else
+			option set "BT:listimage", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listusb"+"\"")) then
+			option set "BT:listusb", "enabled", true
+		else
+			option set "BT:listusb", "enabled", false
+		endif		
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".packages"+"\"")) then
+			option set "BT:packages", "enabled", true
+		else
+			option set "BT:packages", "enabled", false
+		endif			
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".repos"+"\"")) then
+			option set "BT:repos", "enabled", true
+		else
+			option set "BT:repos", "enabled", false
+		endif			
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".sysinfo"+"\"")) then
+			option set "BT:sysinfo", "enabled", true
+		else
+			option set "BT:sysinfo", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".syslog"+"\"")) then
+			option set "BT:syslog", "enabled", true
+		else
+			option set "BT:syslog", "enabled", false
+		endif
+		if(IfExists("\""+AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".notice"+"\"")) then
+			option set "BT:notes", "enabled", true
+		else
+			option set "BT:notes", "enabled", false
+		endif
+		MENU SET "Database", "Send your Database to BeSly", "enable", AppInternalName$
+		MENU SET "Database", "Export As...", "enable", AppInternalName$
+		
+		break
+		
+	case "BT:"+PartTwo$+"|"
+		if(PartTwo$="dmidecode")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".dmidecode"
+		elseif(PartTwo$="ifconfig")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".ifconfig"
+		elseif(PartTwo$="listdev")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listdev"
+		elseif(PartTwo$="listimage")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listimage"
+		elseif(PartTwo$="listusb")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".listusb"
+		elseif(PartTwo$="packages")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".packages"
+		elseif(PartTwo$="repos")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".repos"
+		elseif(PartTwo$="packages")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".sysinfo"
+		elseif(PartTwo$="syslog")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".syslog"
+		elseif(PartTwo$="notes")then
+			launch AppDB$+"/"+trim$(GetDatabaseEntrieName$)+"/"+trim$(GetDatabaseEntrieName$)+".notice"
+		else			
+		endif
+		break 
+		
+		
+	//Update Database
+	
+	case AppInternalName$+":Database:Update Database|"
+		STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 0
+		STACKVIEW SET "SV_Main", 1	
+		GetUpdate$=system$("cd "+UpdatesFolder$+";wget -Nnv http://software.besly.de/repo/software_updates/beslysat.zip -o /boot/home/.besly/BeSlySAT/update/info")
+		STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 10
+			
+		//GetUpdate$=system$("cd "+UpdatesFolder$+";wget -Nnv http://software.besly.de/repo/software_updates/buildlog.zip -o /boot/home/.besly/buildLOG/updates/info")
+		if(system("test -s "+UpdatesFolder$+"/info")=true)then
+			STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 100
+			ALERT "There are no newer database available", "close", "info"
+			wait 1
+			STACKVIEW SET "SV_Main", 2
+		else
+			STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 20
+			Selected = ALERT "New database available!", "update", "close", "", "info"
+				if(Selected=1)then
+					Output$=System$("cd /;unzip -o "+UpdatesFolder$+"/beslysat.zip")
+					STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 40
+					addhardware=2
+					ReadoutDatabase()
+				else
+					STATUSBAR SET "SB:Loading", "Update Database", "Checking for updates", 100
+					wait 1
+					STACKVIEW SET "SV_Main", 2
+				endif
+		endif	
+		break
+		
+	
+	//User Database send to BeSly
+	
+	case AppInternalName$+":Database:Send your Database to BeSly|"
+		if(IfExists(App_DatabaseFolder$+"/userfiles.zip")) then
+			Output$=System$("rm -r "+App_DatabaseFolder$+"/userfiles.zip")
+		endif
+			
+		Output$=System$("zip -r9yu "+App_DatabaseFolder$+"/userfiles.zip "+UserDB$)
+		Output$=System$("Mail mailto:lelldorin@gmx.de -subject "+"\""+"BeSlySAT"+"\""+" -body "+"\""+"User database send to BeSly"+"\""+" enclosure:"+"\""+App_DatabaseFolder$+"/userfiles.zip"+"\"")
+		break
+	
+	//Export User Database as ZIP file
+	case AppInternalName$+":Database:Export As...:ZIP file|"
+		Output$=System$("zip -r9yu /boot/home/Desktop/BeSlySAT_UserDatabase_"+Date$+".zip "+UserDB$)
+		break
+	
+	//switch Tabviews	
+	case "TV_SAT:_TabChanged:"+PartThree$+"|"
+		//MENU SET "Database", "Export As...", "disable", AppInternalName$
+		option set "BT:ifconfig", "enabled", false
+		option set "BT:listdev", "enabled", false
+		option set "BT:listimage", "enabled", false
+		option set "BT:listusb", "enabled", false
+		option set "BT:sysinfo", "enabled", false
+		option set "BT:syslog", "enabled", false
+		MENU SET "Database", "Send your Database to BeSly", "disable", AppInternalName$
+		MENU SET "Database", "Export As...", "disable", AppInternalName$
+		break 
+		
+		
+	//Export to Textfile
+	case "BeSlySAT:Database:Export As...:"+PartFour$+"|"
+		if(PartFour$="Text file")then
+			writefile = open(TempFolder$+"/"+SelectedDBFile$, "a")
+				print #writefile "User Informations"
+				print #writefile ""
+				print #writefile "Name:"+SelectedDBFile$
+				print #writefile "Manufacturer:"+trim$(System$("catattr -d 30 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Model:"+trim$(System$("catattr -d 31 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Main Memory:"+trim$(System$("catattr -d 32 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Size:"+trim$(System$("catattr -d 33 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Processor:"+trim$(System$("catattr -d 34 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Cores:"+trim$(System$("catattr -d 35 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Graphics Card:"+trim$(System$("catattr -d 36 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Count:"+trim$(System$("catattr -d 37 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Network Card LAN:"+trim$(System$("catattr -d 38 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Network Card WLAN:"+trim$(System$("catattr -d 39 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Soundcard Onboard:"+trim$(System$("catattr -d 40 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Soundcard Expanded:"+trim$(System$("catattr -d 41 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Card Reader:"+trim$(System$("catattr -d 42 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				
+				print #writefile "System version:"+trim$(System$("catattr -d 01 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Gcc Version:"+trim$(System$("catattr -d 02 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Botting from:"+trim$(System$("catattr -d 03 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Running on:"+trim$(System$("catattr -d 04 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Long time blackscreen:"+trim$(System$("catattr -d 05 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Hanging on Booticon:"+trim$(System$("catattr -d 06 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Vesa Mode:"+trim$(System$("catattr -d 07 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Vesa screen resolution:"+trim$(System$("catattr -d 07-1 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Using highest Screen Resolution:"+trim$(System$("catattr -d 08 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Highest Screen Resolution:"+trim$(System$("catattr -d 08-1 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Do you have sound:"+trim$(System$("catattr -d 09 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Connection via LAN:"+trim$(System$("catattr -d 10 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Connection via WLAN:"+trim$(System$("catattr -d 11 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "All Harddiscs detected:"+trim$(System$("catattr -d 12 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Mouse detected:"+trim$(System$("catattr -d 13 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Keyboard detected:"+trim$(System$("catattr -d 14 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "CD detected:"+trim$(System$("catattr -d 15 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "DVD detected:"+trim$(System$("catattr -d 16 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile "Blue Ray detected:"+trim$(System$("catattr -d 17 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""+"/"+"\""+SelectedDBFile$+".data\""))
+				print #writefile ""
+				print #writefile "Hardware Information"
+				print #writefile ""
+				n = COLUMNBOX COUNT "CB_DatabaseHardware"
+				for i = 1 to n
+					Item1$ = COLUMNBOX GET$ "CB_DatabaseHardware", 1, i
+					Item2$ = COLUMNBOX GET$ "CB_DatabaseHardware", 2, i
+					Item3$ = COLUMNBOX GET$ "CB_DatabaseHardware", 3, i
+					Item4$ = COLUMNBOX GET$ "CB_DatabaseHardware", 4, i
+					Item5$ = COLUMNBOX GET$ "CB_DatabaseHardware", 5, i
+					Item6$ = COLUMNBOX GET$ "CB_DatabaseHardware", 6, i
+					Item7$ = COLUMNBOX GET$ "CB_DatabaseHardware", 7, i
+					Item8$ = COLUMNBOX GET$ "CB_DatabaseHardware", 8, i
+					print #writefile Item1$+":"+Item2$+":"+Item3$+":"+Item4$+":"+Item5$+":"+Item6$+":"+Item7$+":"+Item8$
+			
+				next i								
+			close(writefile)
+			
+			Export$ = FILEPANEL "Save-File", "Export File:", "/boot/home/Desktop/", SelectedDBFile$+".txt"
+		
+			Output$=System$("mv "+"\""+TempFolder$+"/"+SelectedDBFile$+"\""+" "+"\""+Export$+"\"")
+			launch(Export$)
+			
+		elseif(PartFour$="PDF file")then
+			writefile = open(TempFolder$+"/"+SelectedDBFile$, "a")
+				print #writefile "User Informations"
+				print #writefile ""
+				print #writefile "Name:"+SelectedDBFile$
+				print #writefile "Manufacturer:"+trim$(System$("catattr -d 30 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Model:"+trim$(System$("catattr -d 31 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Main Memory:"+trim$(System$("catattr -d 32 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Size:"+trim$(System$("catattr -d 33 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Processor:"+trim$(System$("catattr -d 34 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Cores:"+trim$(System$("catattr -d 35 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Graphics Card:"+trim$(System$("catattr -d 36 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Count:"+trim$(System$("catattr -d 37 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Network Card LAN:"+trim$(System$("catattr -d 38 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Network Card WLAN:"+trim$(System$("catattr -d 39 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Soundcard Onboard:"+trim$(System$("catattr -d 40 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Soundcard Expanded:"+trim$(System$("catattr -d 41 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Card Reader:"+trim$(System$("catattr -d 42 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				
+				print #writefile "System version:"+trim$(System$("catattr -d 01 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Gcc Version:"+trim$(System$("catattr -d 02 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Botting from:"+trim$(System$("catattr -d 03 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Running on:"+trim$(System$("catattr -d 04 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Long time blackscreen:"+trim$(System$("catattr -d 05 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Hanging on Booticon:"+trim$(System$("catattr -d 06 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Vesa Mode:"+trim$(System$("catattr -d 07 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Vesa screen resolution:"+trim$(System$("catattr -d 07-1 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Using highest Screen Resolution:"+trim$(System$("catattr -d 08 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Highest Screen Resolution:"+trim$(System$("catattr -d 08-1 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Do you have sound:"+trim$(System$("catattr -d 09 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Connection via LAN:"+trim$(System$("catattr -d 10 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Connection via WLAN:"+trim$(System$("catattr -d 11 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "All Harddiscs detected:"+trim$(System$("catattr -d 12 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Mouse detected:"+trim$(System$("catattr -d 13 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Keyboard detected:"+trim$(System$("catattr -d 14 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "CD detected:"+trim$(System$("catattr -d 15 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "DVD detected:"+trim$(System$("catattr -d 16 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile "Blue Ray detected:"+trim$(System$("catattr -d 17 /boot/home/.besly/BeSlySAT/database/appDB/"+"\""+SelectedDBFile$+"\""))
+				print #writefile ""
+				print #writefile "Hardware Information"
+				print #writefile ""
+				n = COLUMNBOX COUNT "CB_DatabaseHardware"
+				for i = 1 to n
+					Item1$ = COLUMNBOX GET$ "CB_DatabaseHardware", 1, i
+					Item2$ = COLUMNBOX GET$ "CB_DatabaseHardware", 2, i
+					Item3$ = COLUMNBOX GET$ "CB_DatabaseHardware", 3, i
+					Item4$ = COLUMNBOX GET$ "CB_DatabaseHardware", 4, i
+					Item5$ = COLUMNBOX GET$ "CB_DatabaseHardware", 5, i
+					Item6$ = COLUMNBOX GET$ "CB_DatabaseHardware", 6, i
+					Item7$ = COLUMNBOX GET$ "CB_DatabaseHardware", 7, i
+					Item8$ = COLUMNBOX GET$ "CB_DatabaseHardware", 8, i
+					print #writefile Item1$+":"+Item2$+":"+Item3$+":"+Item4$+":"+Item5$+":"+Item6$+":"+Item7$+":"+Item8$
+				next i								
+			close(writefile)
+			
+			Export$ = FILEPANEL "Save-File", "Export File:", "/boot/home/Desktop/", SelectedDBFile$
+			Output$=System$(ProgramFolder$+"/bin/text2pdf "+TempFolder$+"/"+SelectedDBFile$+" > "+"\""+Export$+".pdf"+"\"")
+		endif
+		break
+		
+		case "BeSlySAT:Help:"+PartThree$+"|"
+			if(PartThree$="Documentation")then
+				Launch "http://besly.de/menu/search/archiv/misc/beslysat.html"
+			elseif(PartThree$="Haiku BUG Tracker")then	
+				Launch "http://dev.haiku-os.org"
+			elseif(PartThree$="BeSly - Haiku, BeOS and Zeta knowledge base")then
+				Launch "http://www.besly.de"
+			elseif(PartThree$="BeSly Software Solutions")then
+				Launch "http://software.besly.de"
+			endif
+			break		
+		
+		//Settings
+		
+		case "TB:Settings:_Select:"+PartFour$+"|"
+			if(PartFour$="2")then	//Full Screen Mode
+				STACKVIEW SET "SV:Settings", 1
+			elseif(PartFour$="3")then	//Tabviews
+				STACKVIEW SET "SV:Settings", 2
+			endif
+			
+			break
+		
+		case "DB:TabPosition:"+PartThree$+"|"
+			SettingsLayout$=trim$(PartThree$)
+			Output$=System$("addattr -t string LAYOUT "+SettingsLayout$+" /boot/home/config/settings/beslysat.cfg")	
+			ALERT "Setting is adopted only after a restart", "Ok", "info"
+			break
+		
+		case "DB:TabAnalysis:"+PartThree$+"|"
+			SettingsExpandAnalysis$=trim$(PartThree$)
+			Output$=System$("addattr -t string Expand:Analysis "+"\""+SettingsExpandAnalysis$+"\""+" /boot/home/config/settings/beslysat.cfg")	
+			ALERT "Setting is adopted only after a restart", "Ok", "info"
+			break
+			
+		case "DB:TabDatabase:"+PartThree$+"|"
+			SettingsExpandDatabase$=trim$(PartThree$)
+			Output$=System$("addattr -t string Expand:Database "+"\""+SettingsExpandDatabase$+"\""+" /boot/home/config/settings/beslysat.cfg")	
+			ALERT "Setting is adopted only after a restart", "Ok", "info"
+			break
+	
+			
+		default:
+	
+	end switch
+	
+	//ScreenSize_Height			ScreenSizeHeight "+str$(ScreenSize_Height)
+	//ScreenSize_Width			ScreenSizeWidth "+str$(ScreenSize_Width)
+	//ScreenSize_X 				WindowPositionX "+str$(CheckScreenSize_X)
+	//ScreenSize_Y				WindowPositionY "+str$(CheckScreenSize_Y)
+	
+	
+	CheckScreenSize_Height = WINDOW GET AppInternalName$, "Height"
+	CheckScreenSize_Width = WINDOW GET AppInternalName$, "Width"
+	CheckScreenSize_X = WINDOW GET AppInternalName$, "Position-X"
+	CheckScreenSize_Y = WINDOW GET AppInternalName$, "Position-Y"
+	
+	if(CheckScreenSize_Height<>ScreenSize_Height)then
+		ScreenSize_Height=CheckScreenSize_Height
+		//print "Screen Height:"+str$(ScreenSize_Height)
+		Output$=System$("addattr -t string ScreenSizeHeight "+str$(ScreenSize_Height)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionX "+str$(CheckScreenSize_X)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionY "+str$(CheckScreenSize_Y)+" /boot/home/config/settings/beslysat.cfg")		
+	elseif(CheckScreenSize_Width<>ScreenSize_Width)then
+		ScreenSize_Width=CheckScreenSize_Width
+		//print "Screen Width:"+str$(ScreenSize_Width)
+		Output$=System$("addattr -t string ScreenSizeWidth "+str$(ScreenSize_Width)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionX "+str$(CheckScreenSize_X)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionY "+str$(CheckScreenSize_Y)+" /boot/home/config/settings/beslysat.cfg")
+	endif
+	if(CheckScreenSize_X<>ScreenSizeX)then
+		Output$=System$("addattr -t string WindowPositionX "+str$(CheckScreenSize_X)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionY "+str$(CheckScreenSize_Y)+" /boot/home/config/settings/beslysat.cfg")		
+	elseif(CheckScreenSize_Y<>ScreenSizeY)then
+		Output$=System$("addattr -t string WindowPositionX "+str$(CheckScreenSize_X)+" /boot/home/config/settings/beslysat.cfg")
+		Output$=System$("addattr -t string WindowPositionY "+str$(CheckScreenSize_Y)+" /boot/home/config/settings/beslysat.cfg")		
+	endif
+	
+	if(window count<1) inloop = false
+	sleep 0.05
+wend
+
+sub GetHardwareInfo()
+	local i
+	local getdetails
+	local getinfo
+	local running
+	
+	i=0
+	getdetails=0
+	running=0
+	
+	dim hardware_details$(1)
+	dim hardware_infos$(1)
+	dim hardware_entry$(1)
+		getdetails = split(system$("listdev"), hardware_details$(), "\n")
+		sb_tile=30/getdetails
+		for i = 1 to getdetails
+			if (left$(hardware_details$(i),6)="device" or left$(hardware_details$(i),6)=" ")then
+				sb_value=sb_value+sb_tile
+				Info_HardwareDevice$=mid$((hardware_details$(i)),7,instr(hardware_details$(i),"(",6)-7)
+				Info_HardwareTyp1$=mid$(hardware_details$(i),instr(hardware_details$(i),"[")+1,instr(hardware_details$(i),"|")-(instr(hardware_details$(i),"[")+1))
+				Info_HardwareTyp2$=mid$(hardware_details$(i),instr(hardware_details$(i),"|")+1,rinstr(hardware_details$(i),"|")-(instr(hardware_details$(i),"|")+1))
+				Info_HardwareTyp3$=mid$(hardware_details$(i),rinstr(hardware_details$(i),"|")+1,rinstr(hardware_details$(i),"]")-(rinstr(hardware_details$(i),"|")+1))
+			endif
+			getinfo = split(hardware_details$(i), hardware_infos$(), " \n")
+				if(getinfo>2)then
+					if(trim$(hardware_infos$(1))="device")then
+						getnumber=i+1
+						running=running+1
+					endif					
+				endif
+				if(i=getnumber)then
+					sb_value=sb_value+sb_tile
+					getentry = split(trim$(hardware_details$(i)), hardware_entry$(), ":")
+					if(getentry=2)then
+						if(left$(trim$(hardware_entry$(1)),6)="vendor")then
+							Info_HardwareVendor$=trim$(hardware_entry$(2))
+							Info_HardwareTyp4$=right$(hardware_entry$(1),rinstr(hardware_entry$(1)," ")-2)
+							getnumber=i+1
+							running=running+1
+						endif
+						if(left$(trim$(hardware_entry$(1)),6)="device")then
+							Info_HardwareTyp$=trim$(hardware_entry$(2))
+							Info_HardwareTyp5$=right$(hardware_entry$(1),rinstr(hardware_entry$(1)," ")-2)
+							running=running+1
+						endif	
+					endif
+				endif
+			
+				if(running=3)then
+					value = COLUMNBOX COUNT "CB_Hardware"
+					COLUMNBOX ADD "CB_Hardware", 1, value+1, 20, trim$(Info_HardwareDevice$)
+					COLUMNBOX ADD "CB_Hardware", 2, value+1, 20, trim$(Info_HardwareVendor$)
+					COLUMNBOX ADD "CB_Hardware", 3, value+1, 20, trim$(Info_HardwareTyp$)
+					COLUMNBOX ADD "CB_Hardware", 4, value+1, 20, trim$(Info_HardwareTyp1$)
+					COLUMNBOX ADD "CB_Hardware", 5, value+1, 20, trim$(Info_HardwareTyp2$)
+					COLUMNBOX ADD "CB_Hardware", 6, value+1, 20, trim$(Info_HardwareTyp3$)
+					COLUMNBOX ADD "CB_Hardware", 7, value+1, 20, trim$(Info_HardwareTyp4$)
+					COLUMNBOX ADD "CB_Hardware", 8, value+1, 20, trim$(Info_HardwareTyp5$)
+					Info_HardwareDevice$=""
+					Info_HardwareVendor$=""
+					Info_HardwareTyp$=""
+					running=0
+					getnumber=0
+					i=i-1
+					sb_value=sb_value+sb_tile
+					STATUSBAR SET "SB:Loading", "Loading Data...", "Getting Hardware Data", sb_value
+				endif
+		next i
+end sub
+
+sub GetScreenInfo()
+	local i
+	local getinfo
+	local getdetails
+	searchbegin=0
+	i=0
+	getinfo=0
+	getdetails=0
+	dim screen_details$(1)
+		getdetails = split(system$("screenmode -s"), screen_details$(), " ")
+		if(getdetails=4)then
+			Info_ScreenWidth$=screen_details$(1)
+			Info_ScreenHeight$=screen_details$(2)
+			Info_ScreenColors$=screen_details$(3)
+			Info_ScreenHrz$=screen_details$(4)
+		endif
+end sub
+
+sub ClearAll()
+	//Info_SystemVersion$=""			//System version
+	//Info_GccVersion$=""				//Gcc Version
+	Info_KindPC$=""
+	Info_BootingFrom$=""			//Botting from
+	Info_RunningOn$=""				//Running on
+	Info_Blackscreen$=""			//Long time Blackscreen on startup
+	Info_Booticons$=""				//Hanging on Booticon
+	Info_Vesa$=""					//Vesa Mode
+	Info_VesaResolutionCurrent$=""	//Used Vesa Resolution
+	Info_ScreenResolution$=""		//Using highest Screen Resolution
+	Info_ScreenResolutionCurrent$=""
+	Info_Sound$=""					//do you have sound?	
+	Info_InternetLAN$=""			//Connection via LAN?
+	Info_InternetWLAN$=""			//Connection via WLAN?
+	Info_Harddisks$=""				//All Harddiscs detected?
+	Info_Mouse$=""					//Mouse detected?
+	Info_Keyboard$=""				//Keyboard detected?
+	Info_CD$=""						//CD detected?
+	Info_DVD$=""					//DVD detected?
+	Info_BlueRay$=""				//Blue Ray detected?
+	Info_USB1$=""
+	Info_USB1Count$=""
+	Info_USB2$=""
+	Info_USB2Count$=""
+	Info_USB3$=""
+	Info_USB3Count$=""
+	
+	Info_Manufacturer$=""			//Manufacturer of the pc
+	Info_ManufacturerYear$=""
+	Info_Model$=""					//PC Model
+	Info_ModelNumber$=""
+	Info_ModeNumber$=""				//PC Model Number
+	Info_MainMemory$=""				//Main Memory
+	Info_MainMemorySize$=""			//Main Memory Size
+	Info_Processor$=""				//Processor
+	Info_ProcessorCores$=""			//Processor Cores
+	Info_GraphicsCard$=""			//Graphics Card
+	Info_GraphicsCardCount$=""		//Graphics Card Count
+	Info_NetworkCardLAN$=""			//Network Card LAN
+	Info_NetworkCardWLAN$=""		//Network Card WLAN
+	Info_SoundcardOnboard$=""		//Soundcard On Board
+	Info_SoundcardExpanded$=""		//Sound Card Expanded
+	Info_CardReader$=""				//Card Reader
+end sub
+
+//Readout Database /boot/home/.besly/BeSlySAT/database/appDB
+sub ReadoutDatabase()
+	local x
+	local i
+	x=0
+	i=0
+	
+	COLUMNBOX CLEAR "CB_Database"
+	ReadDatabase$=system$("ls -G -1 "+"\""+AppDB$+"\"")
+	dim SplitDirDatabase$(1)
+		b = split(ReadDatabase$, SplitDirDatabase$(), "\n")
+		if(addhardware=1)then
+			sb_tile=100/b
+		elseif(addhardware=2)then
+			sb_value=40
+			sb_tile=60/b
+		else
+			sb_tile=50/b
+		endif
+		for i = 01 to b-1
+			x=x+1
+			COLUMNBOX ADD "CB_Database", 1, x, 20,SplitDirDatabase$(i)
+			COLUMNBOX ADD "CB_Database", 2, x, 20, trim$(System$("catattr -d 00 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 3, x, 20, trim$(System$("catattr -d 30 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 4, x, 20, trim$(System$("catattr -d 30-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 5, x, 20, trim$(System$("catattr -d 31 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 6, x, 20, trim$(System$("catattr -d 31-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 7, x, 20, trim$(System$("catattr -d 32 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 8, x, 20, trim$(System$("catattr -d 33 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 9, x, 20, trim$(System$("catattr -d 34 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 10, x, 20, trim$(System$("catattr -d 35 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 11, x, 20, trim$(System$("catattr -d 36 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 12, x, 20, trim$(System$("catattr -d 37 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 13, x, 20, trim$(System$("catattr -d 38 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 14, x, 20, trim$(System$("catattr -d 39 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 15, x, 20, trim$(System$("catattr -d 40 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 16, x, 20, trim$(System$("catattr -d 41 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 17, x, 20, trim$(System$("catattr -d 42 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 18, x, 20, trim$(System$("catattr -d 01 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 19, x, 20, trim$(System$("catattr -d 02 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 20, x, 20, trim$(System$("catattr -d 03 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 21, x, 20, trim$(System$("catattr -d 04 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 22, x, 20, trim$(System$("catattr -d 05 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 23, x, 20, trim$(System$("catattr -d 06 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 24, x, 20, trim$(System$("catattr -d 07 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 25, x, 20, trim$(System$("catattr -d 07-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 26, x, 20, trim$(System$("catattr -d 08 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 27, x, 20, trim$(System$("catattr -d 08-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 28, x, 20, trim$(System$("catattr -d 09 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 29, x, 20, trim$(System$("catattr -d 10 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 30, x, 20, trim$(System$("catattr -d 11 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 31, x, 20, trim$(System$("catattr -d 12 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 32, x, 20, trim$(System$("catattr -d 13 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 33, x, 20, trim$(System$("catattr -d 14 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 34, x, 20, trim$(System$("catattr -d 15 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 35, x, 20, trim$(System$("catattr -d 16 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 36, x, 20, trim$(System$("catattr -d 17 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 37, x, 20, trim$(System$("catattr -d 18 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 38, x, 20, trim$(System$("catattr -d 18-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 39, x, 20, trim$(System$("catattr -d 19 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 40, x, 20, trim$(System$("catattr -d 19-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 41, x, 20, trim$(System$("catattr -d 20 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			COLUMNBOX ADD "CB_Database", 42, x, 20, trim$(System$("catattr -d 20-1 "+AppDB$+"/"+"\""+SplitDirDatabase$(i)+"\""+"/"+"\""+SplitDirDatabase$(i)+".data"+"\""))
+			sb_value=sb_value+sb_tile
+			STATUSBAR SET "SB:Loading", "Loading Data...", "Read out Database", sb_value
+		next i
+		if(addhardware=1 or addhardware=2)then
+			wait 1
+			STATUSBAR SET "SB:Loading", "Loading Data...", "Read out Database", 100
+			wait 1
+			STACKVIEW SET "SV_Main", 2
+		else
+		endif
+end sub
+
+//########################## Get Program Settings ####################
+sub GetProgramSettings()	
+	SettingsLayout$=trim$(System$("catattr -d LAYOUT /boot/home/config/settings/beslysat.cfg"))
+	SettingsExpandAnalysis$=trim$(System$("catattr -d Expand:Analysis /boot/home/config/settings/beslysat.cfg"))
+	SettingsExpandDatabase$=trim$(System$("catattr -d Expand:Database /boot/home/config/settings/beslysat.cfg"))
+	ScreenSizeHeight=val(System$("catattr -d ScreenSizeHeight /boot/home/config/settings/beslysat.cfg"))
+	ScreenSizeWidth=val(System$("catattr -d ScreenSizeWidth /boot/home/config/settings/beslysat.cfg"))
+	ScreenSizeX=val(System$("catattr -d WindowPositionX /boot/home/config/settings/beslysat.cfg"))
+	ScreenSizeY=val(System$("catattr -d WindowPositionY /boot/home/config/settings/beslysat.cfg"))
+	
+	//ScreenSize_Height			ScreenSizeHeight "+str$(ScreenSize_Height)
+	//ScreenSize_Width			ScreenSizeWidth "+str$(ScreenSize_Width)
+	//ScreenSize_X 				WindowPositionX "+str$(CheckScreenSize_X)
+	//ScreenSize_Y				WindowPositionY "+str$(CheckScreenSize_Y)
+end sub
+
+//##################################### If Exisits #####################################
+sub IfExists(filename$)
+     return not system("test -e "+filename$)
+end sub  
