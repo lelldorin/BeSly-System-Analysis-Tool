@@ -1,0 +1,41 @@
+BeSly Software Solutions
+Developers: Christian Albrecht, Lorenz Glaser
+Version 0.3.7 - May 2016
+Copyrights 2015-2016 BeSly Software Solutions
+
+About this Project
+
+Many people ask for a database of compatible hardware for Haiku. A project like this is a very big task and it is not possible without the help of the users themselves.
+
+This project will try to generate a database of this kind, but not only to store compatible hardware.  We want to collect all the hardware that people have tried, so developers can look into the database to see what new drivers may be needed.
+
+We have also added an 'export' function that will create a text file for the Haiku bug tracker, so you can add a hardware profile of your computer within a bug report.
+
+How to use
+
+Analysis:
+
+When you start the program many pieces of information about your computer will be collected using the system commands "listdev" and "uname".
+
+You will see a list of questions about your system:  answer them to generate a hardware profile of your system.
+
+Store your hardware data using the database menu "add hardwaredata".
+
+The program database and user database are kept separate, so you can update your program database and add your own files in your user database into the program without destroying older entries.
+
+Send your hardware data to BeSly by selecting "Send your Database to BeSly" in the database menu (Here you only send the user database files to BeSly). A mail will be generated with the sending address, your database files included in a zip archive, and a generated subject.
+
+Database:
+
+Select the "Database" tab to see the hardware database. If you select one of the listed files the Hardware list will be shown under "Hardware". All other information is listed in the "Database" table.
+
+Update the database
+
+To update the database, select "Update Database" in the database menu. If a newer version is available you will be asked to install it.
+
+Future plans:
+
+- We want to generate an online database within the BeSly knowledge base.
+- Some more export functions
+- Let us see what the users are asking for
+- We hope to get any help from the Haiku main developers so we can collect more useful hardware information 
